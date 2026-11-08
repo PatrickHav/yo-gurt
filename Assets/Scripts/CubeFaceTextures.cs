@@ -23,6 +23,8 @@ public class CubeFaceTextures : MonoBehaviour
 
     [Tooltip("Rotate the image on this face in 90 degree steps.")]
     [Range(0, 3)] public int rotate90;
+    [Tooltip("Mark this if the face contains the rolling pin.")]
+    public bool isRollingPin;
 }
 
 [Header("Faces (local to the cube)")]
@@ -70,6 +72,22 @@ public void Rebuild()
     BuildFace("Back", back, Vector3.back, Vector3.up, source);
     BuildFace("Left", left, Vector3.left, Vector3.up, source);
     BuildFace("Right", right, Vector3.right, Vector3.up, source);
+}
+
+public bool IsRollingPinFacingDown(Quaternion cubeRotation)
+{
+    return IsMarkedFaceDown(top, Vector3.up, cubeRotation)
+        || IsMarkedFaceDown(bottom, Vector3.down, cubeRotation)
+        || IsMarkedFaceDown(front, Vector3.forward, cubeRotation)
+        || IsMarkedFaceDown(back, Vector3.back, cubeRotation)
+        || IsMarkedFaceDown(left, Vector3.left, cubeRotation)
+        || IsMarkedFaceDown(right, Vector3.right, cubeRotation);
+}
+
+private static bool IsMarkedFaceDown(Face face, Vector3 localNormal, Quaternion cubeRotation)
+{
+    return face != null && face.isRollingPin
+        && Vector3.Dot(cubeRotation * localNormal, Vector3.down) > 0.95f;
 }
 
 private Material GetBaseMaterialFromRenderer()

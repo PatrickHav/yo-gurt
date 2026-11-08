@@ -21,10 +21,24 @@ public class RollingCube : MonoBehaviour
 
     private bool isRolling;
     private Vector3 startPosition;
+    private CubeFaceTextures faceTextures;
+    private Transform roundDough;
+    private Renderer roundDoughRenderer;
+    private bool doughFlattened;
+
+    [SerializeField, Range(0.05f, 0.5f)] private float flattenedDoughHeight = 0.18f;
 
     private void Awake()
     {
         startPosition = transform.position;
+        faceTextures = GetComponent<CubeFaceTextures>();
+
+        GameObject doughObject = GameObject.Find("dough");
+        if (doughObject != null)
+        {
+            roundDough = doughObject.transform;
+            roundDoughRenderer = doughObject.GetComponentInChildren<Renderer>();
+        }
     }
 
     private void Update()
@@ -81,6 +95,10 @@ public class RollingCube : MonoBehaviour
 
         Vector3 startPos = transform.position;
         Quaternion startRot = transform.rotation;
+        bool flattenDoughWhenMoveEnds = !doughFlattened
+            && IsOnRoundDoughTile(startPos)
+            && faceTextures != null
+            && faceTextures.IsRollingPinFacingDown(startRot);
 
         // Pivot = the bottom edge we're tipping over.
         Vector3 pivot = startPos + dir * (stepSize * 0.5f) + Vector3.down * (stepSize * 0.5f);
@@ -106,8 +124,40 @@ public class RollingCube : MonoBehaviour
         e.z = Mathf.Round(e.z / 90f) * 90f;
 
         transform.SetPositionAndRotation(startPos + dir * stepSize, Quaternion.Euler(e));
+        if (flattenDoughWhenMoveEnds)
+            FlattenRoundDough();
         isRolling = false;
 
         Landed?.Invoke(this);
+    }
+
+    private bool IsOnRoundDoughTile(Vector3 position)
+    {
+        if (roundDough == null) return false;
+
+        float tolerance = stepSize * 0.25f;
+        return Mathf.Abs(position.x - roundDough.position.x) <= tolerance
+            && Mathf.Abs(position.z - roundDough.position.z) <= tolerance;
+    }
+
+    private void FlattenRoundDough()
+    {
+        if (roundDough == null || doughFlattened) return;
+
+        float bottomBefore = roundDoughRenderer != null
+            ? roundDoughRenderer.bounds.min.y
+            : 0f;
+
+        Vector3 scale = roundDough.localScale;
+        scale.y *= flattenedDoughHeight;
+        roundDough.localScale = scale;
+
+        if (roundDoughRenderer != null)
+        {
+            float bottomAfter = roundDoughRenderer.bounds.min.y;
+            roundDough.position += Vector3.up * (bottomBefore - bottomAfter);
+        }
+
+        doughFlattened = true;
     }
 }
