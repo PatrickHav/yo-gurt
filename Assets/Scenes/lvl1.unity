@@ -867,12 +867,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NewMonoBehaviourScript
   top:
-    texture: {fileID: 2800000, guid: 97d147aaba4ffb795af611ec0456f955, type: 3}
+    texture: {fileID: 2800000, guid: b51998348dd78b83cbfb847467c768b9, type: 3}
     filePath: 
     rotate90: 0
     isRollingPin: 0
   bottom:
-    texture: {fileID: 2800000, guid: b51998348dd78b83cbfb847467c768b9, type: 3}
+    texture: {fileID: 2800000, guid: 97d147aaba4ffb795af611ec0456f955, type: 3}
     filePath: 
     rotate90: 0
     isRollingPin: 1
