@@ -66,17 +66,14 @@ public class RollingCube : MonoBehaviour
 
     // Moves the cube back to its start tile. Rotation is deliberately NOT touched,
     // so every face stays exactly where it was.
-    public void ResetToStart()
-    {
-        StopAllCoroutines();
-        isRolling = false;
-        transform.position = startPosition;
-
-        // Un-flatten the dough.
-        if (roundDough != null) roundDough.SetActive(true);
-        if (flatDough != null) flatDough.SetActive(false);
-        doughFlattened = false;
-    }
+// Moves the cube back to its start tile. Rotation is deliberately NOT touched,
+// so every face stays exactly where it was. The dough keeps its current state.
+public void ResetToStart()
+{
+    StopAllCoroutines();
+    isRolling = false;
+    transform.position = startPosition;
+}
 
     private Vector3 ReadDirection()
     {
