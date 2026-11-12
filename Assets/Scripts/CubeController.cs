@@ -16,29 +16,40 @@ public class RollingCube : MonoBehaviour
     [Tooltip("Layers that count as valid ground. Leave on Everything if unsure.")]
     [SerializeField] private LayerMask groundMask = ~0;
 
+    [Header("Dough")]
+    [Tooltip("The normal (round) dough object.")]
+    [SerializeField] private GameObject roundDough;
+
+    [Tooltip("The flat dough object. Must NOT be a child of the round dough. Hidden until flattened.")]
+    [SerializeField] private GameObject flatDough;
+
+    [Tooltip("Optional. Transform at the centre of the dough tile. If empty, the round dough's position is used.")]
+    [SerializeField] private Transform doughTile;
+
     // Fired once a roll has completely finished (cube is at rest on a tile).
     public static event Action<RollingCube> Landed;
 
     private bool isRolling;
     private Vector3 startPosition;
     private CubeFaceTextures faceTextures;
-    private Transform roundDough;
-    private Renderer roundDoughRenderer;
     private bool doughFlattened;
-
-    [SerializeField, Range(0.05f, 0.5f)] private float flattenedDoughHeight = 0.18f;
 
     private void Awake()
     {
         startPosition = transform.position;
         faceTextures = GetComponent<CubeFaceTextures>();
 
-        GameObject doughObject = GameObject.Find("dough");
-        if (doughObject != null)
-        {
-            roundDough = doughObject.transform;
-            roundDoughRenderer = doughObject.GetComponentInChildren<Renderer>();
-        }
+        // Fall back to finding the objects by name if they weren't assigned.
+        // (GameObject.Find only finds ACTIVE objects, so "dough_flat" must be
+        // active in the scene when you press Play, or be assigned in the Inspector.)
+        if (roundDough == null) roundDough = GameObject.Find("dough");
+        if (flatDough == null) flatDough = GameObject.Find("dough_flat");
+
+        if (roundDough == null) Debug.LogWarning("RollingCube: could not find 'dough'.", this);
+        if (flatDough == null) Debug.LogWarning("RollingCube: could not find 'dough_flat'.", this);
+
+        if (flatDough != null) flatDough.SetActive(false);
+        if (roundDough != null) roundDough.SetActive(true);
     }
 
     private void Update()
@@ -60,6 +71,11 @@ public class RollingCube : MonoBehaviour
         StopAllCoroutines();
         isRolling = false;
         transform.position = startPosition;
+
+        // Un-flatten the dough.
+        if (roundDough != null) roundDough.SetActive(true);
+        if (flatDough != null) flatDough.SetActive(false);
+        doughFlattened = false;
     }
 
     private Vector3 ReadDirection()
@@ -95,8 +111,11 @@ public class RollingCube : MonoBehaviour
 
         Vector3 startPos = transform.position;
         Quaternion startRot = transform.rotation;
-        bool flattenDoughWhenMoveEnds = !doughFlattened
-            && IsOnRoundDoughTile(startPos)
+
+        // Are we standing on the dough tile with the rolling pin face pointing down?
+        // Checked BEFORE the move: the dough flattens as we leave the tile.
+        bool flattenWhenMoveEnds = !doughFlattened
+            && IsOnDoughTile(startPos)
             && faceTextures != null
             && faceTextures.IsRollingPinFacingDown(startRot);
 
@@ -124,39 +143,37 @@ public class RollingCube : MonoBehaviour
         e.z = Mathf.Round(e.z / 90f) * 90f;
 
         transform.SetPositionAndRotation(startPos + dir * stepSize, Quaternion.Euler(e));
-        if (flattenDoughWhenMoveEnds)
-            FlattenRoundDough();
+
+        if (flattenWhenMoveEnds)
+            FlattenDough();
+
         isRolling = false;
 
         Landed?.Invoke(this);
     }
 
-    private bool IsOnRoundDoughTile(Vector3 position)
+    private Vector3 DoughTilePosition()
     {
-        if (roundDough == null) return false;
-
-        float tolerance = stepSize * 0.25f;
-        return Mathf.Abs(position.x - roundDough.position.x) <= tolerance
-            && Mathf.Abs(position.z - roundDough.position.z) <= tolerance;
+        if (doughTile != null) return doughTile.position;
+        return roundDough != null ? roundDough.transform.position : Vector3.zero;
     }
 
-    private void FlattenRoundDough()
+    private bool IsOnDoughTile(Vector3 position)
     {
-        if (roundDough == null || doughFlattened) return;
+        if (doughTile == null && roundDough == null) return false;
 
-        float bottomBefore = roundDoughRenderer != null
-            ? roundDoughRenderer.bounds.min.y
-            : 0f;
+        float tolerance = stepSize * 0.25f;
+        Vector3 d = DoughTilePosition();
+        return Mathf.Abs(position.x - d.x) <= tolerance
+            && Mathf.Abs(position.z - d.z) <= tolerance;
+    }
 
-        Vector3 scale = roundDough.localScale;
-        scale.y *= flattenedDoughHeight;
-        roundDough.localScale = scale;
+    private void FlattenDough()
+    {
+        if (doughFlattened) return;
 
-        if (roundDoughRenderer != null)
-        {
-            float bottomAfter = roundDoughRenderer.bounds.min.y;
-            roundDough.position += Vector3.up * (bottomBefore - bottomAfter);
-        }
+        if (flatDough != null) flatDough.SetActive(true);
+        if (roundDough != null) roundDough.SetActive(false);
 
         doughFlattened = true;
     }
