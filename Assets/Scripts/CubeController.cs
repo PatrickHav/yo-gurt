@@ -17,14 +17,19 @@ public class RollingCube : MonoBehaviour
     [SerializeField] private LayerMask groundMask = ~0;
 
     [Header("Dough")]
-    [Tooltip("The normal (round) dough object.")]
+    [Tooltip("The normal (round) dough object. If empty, the object named 'dough' is used.")]
     [SerializeField] private GameObject roundDough;
 
-    [Tooltip("The flat dough object. Must NOT be a child of the round dough. Hidden until flattened.")]
+    [Tooltip("The flat dough. Can be an object in the scene or the imported model/prefab from the Project window. If empty, the object named 'dough_flat' is used.")]
     [SerializeField] private GameObject flatDough;
 
     [Tooltip("Optional. Transform at the centre of the dough tile. If empty, the round dough's position is used.")]
     [SerializeField] private Transform doughTile;
+
+    [Tooltip("When flattening, move the flat dough to the centre of the dough tile and sit it on the same ground level as the round dough. Turn off if you positioned it yourself.")]
+    [SerializeField] private bool alignFlatDough = true;
+    [Tooltip("Extra height added to the flat dough after aligning. Raise this if it sinks into the tile.")]
+    [SerializeField] private float flatDoughHeightOffset = 0f;
 
     // Fired once a roll has completely finished (cube is at rest on a tile).
     public static event Action<RollingCube> Landed;
@@ -39,14 +44,17 @@ public class RollingCube : MonoBehaviour
         startPosition = transform.position;
         faceTextures = GetComponent<CubeFaceTextures>();
 
-        // Fall back to finding the objects by name if they weren't assigned.
-        // (GameObject.Find only finds ACTIVE objects, so "dough_flat" must be
-        // active in the scene when you press Play, or be assigned in the Inspector.)
-        if (roundDough == null) roundDough = GameObject.Find("dough");
-        if (flatDough == null) flatDough = GameObject.Find("dough_flat");
+        // Fall back to finding the objects by name (also finds inactive ones).
+        if (roundDough == null) roundDough = FindSceneObject("dough");
+        if (flatDough == null) flatDough = FindSceneObject("dough_flat");
 
         if (roundDough == null) Debug.LogWarning("RollingCube: could not find 'dough'.", this);
         if (flatDough == null) Debug.LogWarning("RollingCube: could not find 'dough_flat'.", this);
+
+        // If a model/prefab from the Project window was assigned (not a scene object),
+        // create a copy in the scene to use.
+        if (flatDough != null && !flatDough.scene.IsValid())
+            flatDough = Instantiate(flatDough);
 
         if (flatDough != null) flatDough.SetActive(false);
         if (roundDough != null) roundDough.SetActive(true);
@@ -65,15 +73,13 @@ public class RollingCube : MonoBehaviour
     }
 
     // Moves the cube back to its start tile. Rotation is deliberately NOT touched,
-    // so every face stays exactly where it was.
-// Moves the cube back to its start tile. Rotation is deliberately NOT touched,
-// so every face stays exactly where it was. The dough keeps its current state.
-public void ResetToStart()
-{
-    StopAllCoroutines();
-    isRolling = false;
-    transform.position = startPosition;
-}
+    // so every face stays exactly where it was. The dough keeps its current state.
+    public void ResetToStart()
+    {
+        StopAllCoroutines();
+        isRolling = false;
+        transform.position = startPosition;
+    }
 
     private Vector3 ReadDirection()
     {
@@ -169,9 +175,57 @@ public void ResetToStart()
     {
         if (doughFlattened) return;
 
-        if (flatDough != null) flatDough.SetActive(true);
+        // Measure the round dough while it's still visible.
+        bool hasRoundBounds = TryGetBounds(roundDough, out Bounds roundBounds);
+
+        if (flatDough != null)
+        {
+            flatDough.SetActive(true);
+
+            if (alignFlatDough && TryGetBounds(flatDough, out Bounds flatBounds))
+            {
+                Vector3 tile = DoughTilePosition();
+               float groundY = (hasRoundBounds ? roundBounds.min.y : flatBounds.min.y) + flatDoughHeightOffset;
+
+                // Centre it on the tile (X/Z) and put its bottom where the round dough's bottom was.
+                Vector3 delta = new Vector3(
+                    tile.x - flatBounds.center.x,
+                    groundY - flatBounds.min.y,
+                    tile.z - flatBounds.center.z);
+                flatDough.transform.position += delta;
+            }
+        }
+
         if (roundDough != null) roundDough.SetActive(false);
 
         doughFlattened = true;
+    }
+
+    // Combined world-space bounds of every renderer on an object and its children.
+    private static bool TryGetBounds(GameObject obj, out Bounds bounds)
+    {
+        bounds = default;
+        if (obj == null) return false;
+
+        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0) return false;
+
+        bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++)
+            bounds.Encapsulate(renderers[i].bounds);
+        return true;
+    }
+
+    // Finds an object in the open scene by name, including inactive ones.
+    private static GameObject FindSceneObject(string objectName)
+    {
+        foreach (Transform t in Resources.FindObjectsOfTypeAll<Transform>())
+        {
+            if (t.name == objectName
+                && t.gameObject.scene.IsValid()
+                && t.hideFlags == HideFlags.None)
+                return t.gameObject;
+        }
+        return null;
     }
 }
