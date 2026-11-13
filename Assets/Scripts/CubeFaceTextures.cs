@@ -29,6 +29,9 @@ public class CubeFaceTextures : MonoBehaviour
 
         [Tooltip("Mark this if the face contains the cookie cutter.")]
         public bool isCookieCutter;
+
+        [Tooltip("Mark this if the face contains the baking sheet.")]
+        public bool isBakingSheet;
     }
 
     [Header("Faces (local to the cube)")]
@@ -86,6 +89,11 @@ public class CubeFaceTextures : MonoBehaviour
     public bool IsCookieCutterFacingDown(Quaternion cubeRotation)
     {
         return IsFaceDown(cubeRotation, f => f.isCookieCutter);
+    }
+
+    public bool IsBakingSheetFacingDown(Quaternion cubeRotation)
+    {
+        return IsFaceDown(cubeRotation, f => f.isBakingSheet);
     }
 
     private bool IsFaceDown(Quaternion cubeRotation, System.Func<Face, bool> isMarked)

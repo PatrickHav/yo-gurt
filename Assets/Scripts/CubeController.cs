@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Serialization;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -23,22 +24,29 @@ public class RollingCube : MonoBehaviour
     [Tooltip("The flat dough. Scene object or imported model/prefab. If empty, the object named 'dough_flat' is used.")]
     [SerializeField] private GameObject flatDough;
 
-    [Tooltip("The dough with the cookie cut out. Scene object or imported model/prefab. If empty, the object named 'dough_cut' is used.")]
-    [SerializeField] private GameObject cutoutDough;
+    [Tooltip("The dough with the cookie shape cut into it (cookie still in place). If empty, the object named 'dough_cut' is used.")]
+    [FormerlySerializedAs("cutoutDough")]
+    [SerializeField] private GameObject cutDough;
+
+    [Tooltip("The dough with the cookie taken out (hole). If empty, the object named 'dough_cutout' is used.")]
+    [SerializeField] private GameObject doughWithHole;
+
+    [Tooltip("The gingerbread man that sticks to the baking sheet side. If empty, the object named 'cookie' is used.")]
+    [SerializeField] private GameObject cookie;
 
     [Tooltip("Optional. Transform at the centre of the dough tile. If empty, the round dough's position is used.")]
     [SerializeField] private Transform doughTile;
 
-    [Tooltip("When swapping, move the new dough to the centre of the dough tile and sit it on the same ground level as the round dough. Turn off if you positioned the objects yourself.")]
+    [Tooltip("When swapping, move the new dough/cookie to the centre of the dough tile and sit it on the same ground level as the round dough. Turn off if you positioned the objects yourself.")]
     [SerializeField] private bool alignDough = true;
 
-    [Tooltip("Extra height added to the flat and cutout dough after aligning. Raise this if they sink into the tile.")]
+    [Tooltip("Extra height added to the flat dough, cut dough, dough with hole and cookie after aligning. Raise this if they sink into the tile.")]
     [SerializeField] private float doughHeightOffset = 0f;
 
     // Fired once a roll has completely finished (cube is at rest on a tile).
     public static event Action<RollingCube> Landed;
 
-    private enum DoughState { Round, Flat, Cutout }
+    private enum DoughState { Round, Flat, Cut, CookieTaken }
 
     private bool isRolling;
     private Vector3 startPosition;
@@ -57,22 +65,28 @@ public class RollingCube : MonoBehaviour
         // Fall back to finding the objects by name (also finds inactive ones).
         if (roundDough == null) roundDough = FindSceneObject("dough");
         if (flatDough == null) flatDough = FindSceneObject("dough_flat");
-        if (cutoutDough == null) cutoutDough = FindSceneObject("dough_cut");
+        if (cutDough == null) cutDough = FindSceneObject("dough_cut");
+        if (doughWithHole == null) doughWithHole = FindSceneObject("dough_cutout");
+        if (cookie == null) cookie = FindSceneObject("cookie");
 
         if (roundDough == null) Debug.LogWarning("RollingCube: could not find 'dough'.", this);
         if (flatDough == null) Debug.LogWarning("RollingCube: could not find 'dough_flat'.", this);
-        if (cutoutDough == null) Debug.LogWarning("RollingCube: could not find 'dough_cut'.", this);
+        if (cutDough == null) Debug.LogWarning("RollingCube: could not find 'dough_cut'.", this);
+        if (doughWithHole == null) Debug.LogWarning("RollingCube: could not find 'dough_cutout'.", this);
+        if (cookie == null) Debug.LogWarning("RollingCube: could not find 'cookie'.", this);
 
         // If a model/prefab from the Project window was assigned (not a scene object),
         // create a copy in the scene to use.
-        if (flatDough != null && !flatDough.scene.IsValid())
-            flatDough = Instantiate(flatDough);
-        if (cutoutDough != null && !cutoutDough.scene.IsValid())
-            cutoutDough = Instantiate(cutoutDough);
+        flatDough = InstantiateIfAsset(flatDough);
+        cutDough = InstantiateIfAsset(cutDough);
+        doughWithHole = InstantiateIfAsset(doughWithHole);
+        cookie = InstantiateIfAsset(cookie);
 
         if (roundDough != null) roundDough.SetActive(true);
         if (flatDough != null) flatDough.SetActive(false);
-        if (cutoutDough != null) cutoutDough.SetActive(false);
+        if (cutDough != null) cutDough.SetActive(false);
+        if (doughWithHole != null) doughWithHole.SetActive(false);
+        if (cookie != null) cookie.SetActive(false);
 
         // Remember where the round dough's bottom is, to place the other versions at the same level.
         if (TryGetBounds(roundDough, out Bounds roundBounds))
@@ -145,10 +159,19 @@ public class RollingCube : MonoBehaviour
             && doughState == DoughState.Round
             && faceTextures.IsRollingPinFacingDown(startRot);
 
-        // Flat dough + cookie cutter face down  ->  cutout dough.
+        // Flat dough + cookie cutter face down  ->  cut dough.
         bool cutWhenMoveEnds = onDough
             && doughState == DoughState.Flat
             && faceTextures.IsCookieCutterFacingDown(startRot);
+
+        // Cut dough + baking sheet face down  ->  the cookie sticks to the baking sheet side.
+        // This happens right as the roll starts, so the cookie travels with the cube.
+        if (onDough
+            && doughState == DoughState.Cut
+            && faceTextures.IsBakingSheetFacingDown(startRot))
+        {
+            TakeCookie();
+        }
 
         // Pivot = the bottom edge we're tipping over.
         Vector3 pivot = startPos + dir * (stepSize * 0.5f) + Vector3.down * (stepSize * 0.5f);
@@ -178,7 +201,7 @@ public class RollingCube : MonoBehaviour
         if (flattenWhenMoveEnds)
             ChangeDough(roundDough, flatDough, DoughState.Flat);
         else if (cutWhenMoveEnds)
-            ChangeDough(flatDough, cutoutDough, DoughState.Cutout);
+            ChangeDough(flatDough, cutDough, DoughState.Cut);
 
         isRolling = false;
 
@@ -215,6 +238,25 @@ public class RollingCube : MonoBehaviour
         doughState = newState;
     }
 
+    // The cookie leaves the dough (hole appears) and sticks to the cube's baking sheet side.
+    private void TakeCookie()
+    {
+        if (cookie != null)
+        {
+            cookie.SetActive(true);
+            if (alignDough) AlignToTile(cookie);
+
+            // The cookie rides along with the cube, so it must not block the ground raycasts.
+            foreach (Collider c in cookie.GetComponentsInChildren<Collider>())
+                c.enabled = false;
+
+            // Keep its current world position/rotation, but follow the cube from now on.
+            cookie.transform.SetParent(transform, true);
+        }
+
+        ChangeDough(cutDough, doughWithHole, DoughState.CookieTaken);
+    }
+
     // Centres the object on the dough tile (X/Z) and sits its bottom on the round dough's ground level.
     private void AlignToTile(GameObject obj)
     {
@@ -228,6 +270,11 @@ public class RollingCube : MonoBehaviour
             groundY - b.min.y,
             tile.z - b.center.z);
         obj.transform.position += delta;
+    }
+
+    private static GameObject InstantiateIfAsset(GameObject obj)
+    {
+        return (obj != null && !obj.scene.IsValid()) ? Instantiate(obj) : obj;
     }
 
     // Combined world-space bounds of every renderer on an object and its children.
