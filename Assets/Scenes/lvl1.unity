@@ -345,6 +345,91 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &277653889
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.59341
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.59341
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.59341
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -0.16602
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.193
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -1.6281
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -7635826562936255635, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 5678a93dfa273794d92ccbcffc6fe233, type: 2}
+    - target: {fileID: 919132149155446097, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_Name
+      value: dough_cut
+      objectReference: {fileID: 0}
+    - target: {fileID: 1151388028547126963, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0.081
+      objectReference: {fileID: 0}
+    - target: {fileID: 1151388028547126963, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.006
+      objectReference: {fileID: 0}
+    - target: {fileID: 1151388028547126963, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -0.278
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: c1389732957e5e640b05f9eaf769cf09, type: 3}
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -855,9 +940,10 @@ MonoBehaviour:
     m_Bits: 4294967295
   roundDough: {fileID: 0}
   flatDough: {fileID: 0}
+  cutoutDough: {fileID: 0}
   doughTile: {fileID: 0}
-  alignFlatDough: 1
-  flatDoughHeightOffset: 0.1
+  alignDough: 1
+  doughHeightOffset: 0.1
 --- !u!114 &540781957
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -875,31 +961,37 @@ MonoBehaviour:
     filePath: 
     rotate90: 0
     isRollingPin: 1
+    isCookieCutter: 0
   bottom:
     texture: {fileID: 0}
     filePath: 
     rotate90: 0
     isRollingPin: 0
+    isCookieCutter: 0
   front:
     texture: {fileID: 0}
     filePath: 
     rotate90: 0
     isRollingPin: 0
+    isCookieCutter: 0
   back:
     texture: {fileID: 0}
     filePath: 
     rotate90: 0
     isRollingPin: 0
+    isCookieCutter: 0
   left:
     texture: {fileID: 2800000, guid: 97d147aaba4ffb795af611ec0456f955, type: 3}
     filePath: 
     rotate90: 0
     isRollingPin: 0
+    isCookieCutter: 1
   right:
     texture: {fileID: 0}
     filePath: 
     rotate90: 0
     isRollingPin: 0
+    isCookieCutter: 0
   baseMaterial: {fileID: 0}
   alphaCutout: 1
   surfaceOffset: 0.001
@@ -3403,6 +3495,7 @@ SceneRoots:
   - {fileID: 540781955}
   - {fileID: 2021488931}
   - {fileID: 679554942}
+  - {fileID: 277653889}
   - {fileID: 1123408071}
   - {fileID: 909680913}
   - {fileID: 860750485}
