@@ -19,10 +19,10 @@ public class TeleportPortal : MonoBehaviour
         rend = GetComponent<Renderer>();
     }
 
-    private void OnEnable() => RollingCube.Landed += OnCubeLanded;
-    private void OnDisable() => RollingCube.Landed -= OnCubeLanded;
+    private void OnEnable() => CubeController.Landed += OnCubeLanded;
+    private void OnDisable() => CubeController.Landed -= OnCubeLanded;
 
-    private void OnCubeLanded(RollingCube cube)
+    private void OnCubeLanded(CubeController cube)
     {
         // Only react if the cube's centre is inside this portal's footprint (top-down).
         if (rend == null) return;

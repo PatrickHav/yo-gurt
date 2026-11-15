@@ -6,7 +6,7 @@ using UnityEngine.Serialization;
 using UnityEngine.InputSystem;
 #endif
 
-public class RollingCube : MonoBehaviour
+public class CubeController : MonoBehaviour
 {
     [Tooltip("Distance of one roll. Should match your tile size (cube size = 1).")]
     [SerializeField] private float stepSize = 1f;
@@ -37,14 +37,34 @@ public class RollingCube : MonoBehaviour
     [Tooltip("Optional. Transform at the centre of the dough tile. If empty, the round dough's position is used.")]
     [SerializeField] private Transform doughTile;
 
+    [Header("Oven")]
+    [Tooltip("The oven tile. Land on it with the baking sheet side down to drop the cookie there. If empty, the object named 'oven' is used.")]
+    [SerializeField] private Transform ovenTile;
+
+    [Tooltip("Extra height for the cookie when it is put on the oven tile.")]
+    [SerializeField] private float ovenCookieHeightOffset = 0f;
+
+    [Header("Cookie on the baking sheet")]
+    [Tooltip("Tiny gap between the baking sheet side and the cookie (prevents flickering).")]
+    [SerializeField] private float cookieGap = 0.005f;
+
+    [Tooltip("Rotation (degrees, in world space) of the cookie while it lies flat against the baking sheet. " +
+             "If the gingerbread man stands up instead of lying flat, try X = 90 or -90. Use Y to turn it around.")]
+    [SerializeField] private Vector3 cookieRotation = Vector3.zero;
+
+    [Header("Alignment")]
     [Tooltip("When swapping, move the new dough/cookie to the centre of the dough tile and sit it on the same ground level as the round dough. Turn off if you positioned the objects yourself.")]
     [SerializeField] private bool alignDough = true;
 
     [Tooltip("Extra height added to the flat dough, cut dough, dough with hole and cookie after aligning. Raise this if they sink into the tile.")]
     [SerializeField] private float doughHeightOffset = 0f;
 
+    [Header("Debug")]
+    [Tooltip("Writes messages to the Console that explain why the cookie was (not) picked up or dropped.")]
+    [SerializeField] private bool debugLogs = true;
+
     // Fired once a roll has completely finished (cube is at rest on a tile).
-    public static event Action<RollingCube> Landed;
+    public static event Action<CubeController> Landed;
 
     private enum DoughState { Round, Flat, Cut, CookieTaken }
 
@@ -52,6 +72,7 @@ public class RollingCube : MonoBehaviour
     private Vector3 startPosition;
     private CubeFaceTextures faceTextures;
     private DoughState doughState = DoughState.Round;
+    private bool carryingCookie;
 
     // Ground level of the round dough, measured once at the start.
     private bool hasGroundY;
@@ -68,12 +89,18 @@ public class RollingCube : MonoBehaviour
         if (cutDough == null) cutDough = FindSceneObject("dough_cut");
         if (doughWithHole == null) doughWithHole = FindSceneObject("dough_cutout");
         if (cookie == null) cookie = FindSceneObject("cookie");
+        if (ovenTile == null)
+        {
+            GameObject oven = FindSceneObject("oven");
+            if (oven != null) ovenTile = oven.transform;
+        }
 
-        if (roundDough == null) Debug.LogWarning("RollingCube: could not find 'dough'.", this);
-        if (flatDough == null) Debug.LogWarning("RollingCube: could not find 'dough_flat'.", this);
-        if (cutDough == null) Debug.LogWarning("RollingCube: could not find 'dough_cut'.", this);
-        if (doughWithHole == null) Debug.LogWarning("RollingCube: could not find 'dough_cutout'.", this);
-        if (cookie == null) Debug.LogWarning("RollingCube: could not find 'cookie'.", this);
+        if (roundDough == null) Debug.LogWarning("CubeController: could not find 'dough'.", this);
+        if (flatDough == null) Debug.LogWarning("CubeController: could not find 'dough_flat'.", this);
+        if (cutDough == null) Debug.LogWarning("CubeController: could not find 'dough_cut'.", this);
+        if (doughWithHole == null) Debug.LogWarning("CubeController: could not find 'dough_cutout'.", this);
+        if (cookie == null) Debug.LogWarning("CubeController: could not find 'cookie'.", this);
+        if (ovenTile == null) Debug.LogWarning("CubeController: no oven tile assigned (or object named 'oven' found).", this);
 
         // If a model/prefab from the Project window was assigned (not a scene object),
         // create a copy in the scene to use.
@@ -164,15 +191,6 @@ public class RollingCube : MonoBehaviour
             && doughState == DoughState.Flat
             && faceTextures.IsCookieCutterFacingDown(startRot);
 
-        // Cut dough + baking sheet face down  ->  the cookie sticks to the baking sheet side.
-        // This happens right as the roll starts, so the cookie travels with the cube.
-        if (onDough
-            && doughState == DoughState.Cut
-            && faceTextures.IsBakingSheetFacingDown(startRot))
-        {
-            TakeCookie();
-        }
-
         // Pivot = the bottom edge we're tipping over.
         Vector3 pivot = startPos + dir * (stepSize * 0.5f) + Vector3.down * (stepSize * 0.5f);
         Vector3 axis = Vector3.Cross(Vector3.up, dir);
@@ -196,7 +214,30 @@ public class RollingCube : MonoBehaviour
         e.y = Mathf.Round(e.y / 90f) * 90f;
         e.z = Mathf.Round(e.z / 90f) * 90f;
 
-        transform.SetPositionAndRotation(startPos + dir * stepSize, Quaternion.Euler(e));
+        Vector3 endPos = startPos + dir * stepSize;
+        Quaternion finalRot = Quaternion.Euler(e);
+        transform.SetPositionAndRotation(endPos, finalRot);
+
+        // Landed with the baking sheet side down?
+        if (faceTextures != null && faceTextures.IsBakingSheetFacingDown(finalRot))
+        {
+            bool onCutDough = IsOnTile(endPos, DoughTilePosition());
+
+            if (doughState == DoughState.Cut && onCutDough)
+                TakeCookie();            // on the cut dough: the cookie sticks to the baking sheet
+            else if (carryingCookie && ovenTile != null && IsOnTile(endPos, TileCenter(ovenTile)))
+                DropCookieOnOven();      // on the oven tile: the cookie is put down
+            else if (debugLogs)
+                Debug.Log($"CubeController: baking sheet is down, but nothing happened. " +
+                          $"Dough state = {doughState} (needs Cut), on dough tile = {onCutDough}, " +
+                          $"carrying cookie = {carryingCookie}.", this);
+        }
+        else if (debugLogs && faceTextures != null && doughState == DoughState.Cut
+                 && IsOnTile(endPos, DoughTilePosition()))
+        {
+            Debug.Log("CubeController: landed on the cut dough, but the baking sheet side is not facing down " +
+                      "(is 'Is Baking Sheet' ticked on the right face in CubeFaceTextures?).", this);
+        }
 
         if (flattenWhenMoveEnds)
             ChangeDough(roundDough, flatDough, DoughState.Flat);
@@ -217,11 +258,20 @@ public class RollingCube : MonoBehaviour
     private bool IsOnDoughTile(Vector3 position)
     {
         if (doughTile == null && roundDough == null) return false;
+        return IsOnTile(position, DoughTilePosition());
+    }
 
+    private bool IsOnTile(Vector3 position, Vector3 tileCenter)
+    {
         float tolerance = stepSize * 0.25f;
-        Vector3 d = DoughTilePosition();
-        return Mathf.Abs(position.x - d.x) <= tolerance
-            && Mathf.Abs(position.z - d.z) <= tolerance;
+        return Mathf.Abs(position.x - tileCenter.x) <= tolerance
+            && Mathf.Abs(position.z - tileCenter.z) <= tolerance;
+    }
+
+    // Centre of a tile object (uses its visible bounds when it has any, else its pivot).
+    private static Vector3 TileCenter(Transform tile)
+    {
+        return TryGetBounds(tile.gameObject, out Bounds b) ? b.center : tile.position;
     }
 
     // Hides the old dough, shows the new one and remembers the new state.
@@ -239,22 +289,73 @@ public class RollingCube : MonoBehaviour
     }
 
     // The cookie leaves the dough (hole appears) and sticks to the cube's baking sheet side.
+    // Called when the cube has just landed on the cut dough with the baking sheet side down.
     private void TakeCookie()
     {
-        if (cookie != null)
+        if (cookie == null)
         {
+            Debug.LogWarning("CubeController: no cookie object assigned or found (name it 'cookie' or " +
+                             "drag it into the Cookie slot).", this);
+        }
+        else
+        {
+            // Attach to the cube first (keeping its world position), THEN show it. This way it also
+            // appears if it was a child of an object that is hidden right now.
+            cookie.transform.SetParent(transform, true);
             cookie.SetActive(true);
-            if (alignDough) AlignToTile(cookie);
+
+            // Lay the cookie flat. (The baking sheet side is facing down right now, so a flat
+            // cookie in world space is also flat against the sheet.)
+            cookie.transform.rotation = Quaternion.Euler(cookieRotation);
 
             // The cookie rides along with the cube, so it must not block the ground raycasts.
             foreach (Collider c in cookie.GetComponentsInChildren<Collider>())
                 c.enabled = false;
 
-            // Keep its current world position/rotation, but follow the cube from now on.
-            cookie.transform.SetParent(transform, true);
+            // Put the cookie directly UNDER the baking sheet side (outside the cube),
+            // centred below the cube, with its top touching the sheet.
+            if (TryGetBounds(cookie, out Bounds b))
+            {
+                float sheetY = transform.position.y - stepSize * 0.5f;
+                Vector3 delta = new Vector3(
+                    transform.position.x - b.center.x,
+                    (sheetY - cookieGap) - b.max.y,
+                    transform.position.z - b.center.z);
+                cookie.transform.position += delta;
+            }
+            else
+            {
+                Debug.LogWarning("CubeController: the cookie has no renderer, so it can't be positioned.", this);
+            }
+
+            carryingCookie = true;
+            if (debugLogs) Debug.Log("CubeController: cookie picked up.", this);
         }
 
         ChangeDough(cutDough, doughWithHole, DoughState.CookieTaken);
+    }
+
+    // Puts the carried cookie down on the oven tile.
+    private void DropCookieOnOven()
+    {
+        if (cookie == null || ovenTile == null) return;
+
+        cookie.transform.SetParent(null, true);
+        carryingCookie = false;
+
+        Vector3 center = TileCenter(ovenTile);
+        float surfaceY = TryGetBounds(ovenTile.gameObject, out Bounds ovenBounds)
+            ? ovenBounds.max.y
+            : ovenTile.position.y;
+
+        if (TryGetBounds(cookie, out Bounds b))
+        {
+            Vector3 delta = new Vector3(
+                center.x - b.center.x,
+                (surfaceY + ovenCookieHeightOffset) - b.min.y,
+                center.z - b.center.z);
+            cookie.transform.position += delta;
+        }
     }
 
     // Centres the object on the dough tile (X/Z) and sits its bottom on the round dough's ground level.
