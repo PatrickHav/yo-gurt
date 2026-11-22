@@ -66,6 +66,25 @@ public class CubeController : MonoBehaviour
     // Fired once a roll has completely finished (cube is at rest on a tile).
     public static event Action<CubeController> Landed;
 
+    // Fired when the round dough is rolled flat with the rolling pin.
+    public static event Action<CubeController> DoughFlattened;
+
+    // Fired when the cookie shape is cut into the flat dough.
+    public static event Action<CubeController> DoughCut;
+
+    // Fired when the cookie is picked up with the baking sheet side.
+    public static event Action<CubeController> CookieTaken;
+
+    // Fired when the carried cookie is dropped on the oven tile.
+    public static event Action<CubeController> CookieDroppedOnOven;
+
+    // Whether the dough objects exist in this scene (resolved in Awake).
+    // Used to build the default task list.
+    public bool HasDough => roundDough != null;
+
+    // Whether an oven tile is present in this scene (resolved in Awake).
+    public bool HasOvenTile => ovenTile != null;
+
     private enum DoughState { Round, Flat, Cut, CookieTaken }
 
     private bool isRolling;
@@ -121,6 +140,12 @@ public class CubeController : MonoBehaviour
             hasGroundY = true;
             doughGroundY = roundBounds.min.y;
         }
+
+        // Show this level's task list in the top-right corner. The default list
+        // only contains tasks this level can actually fulfil. If the scene has its
+        // own TaskListUI object, that one is used instead of the default list.
+        if (FindAnyObjectByType<TaskListUI>() == null)
+            TaskListUI.CreateDefaultList(this);
     }
 
     private void Update()
@@ -240,9 +265,15 @@ public class CubeController : MonoBehaviour
         }
 
         if (flattenWhenMoveEnds)
+        {
             ChangeDough(roundDough, flatDough, DoughState.Flat);
+            DoughFlattened?.Invoke(this);
+        }
         else if (cutWhenMoveEnds)
+        {
             ChangeDough(flatDough, cutDough, DoughState.Cut);
+            DoughCut?.Invoke(this);
+        }
 
         isRolling = false;
 
@@ -333,6 +364,7 @@ public class CubeController : MonoBehaviour
         }
 
         ChangeDough(cutDough, doughWithHole, DoughState.CookieTaken);
+        CookieTaken?.Invoke(this);
     }
 
     // Puts the carried cookie down on the oven tile.
@@ -356,6 +388,8 @@ public class CubeController : MonoBehaviour
                 center.z - b.center.z);
             cookie.transform.position += delta;
         }
+
+        CookieDroppedOnOven?.Invoke(this);
     }
 
     // Centres the object on the dough tile (X/Z) and sits its bottom on the round dough's ground level.

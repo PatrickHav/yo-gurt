@@ -12,6 +12,14 @@ public class TeleportPortal : MonoBehaviour
     [Tooltip("The portal tile the cube teleports to when 'Return To Spawn' is OFF.\nDrag the other portal in here. If left empty it falls back to spawn.")]
     [SerializeField] private TeleportPortal linkedPortal;
 
+    // Fired after the cube was teleported to the linked portal's tile
+    // (not when it is sent back to its spawn).
+    public static event Action<TeleportPortal> Teleported;
+
+    // Whether this portal is linked to another one (used to build the default
+    // task list, since only linked portals can actually teleport).
+    public bool HasLinkedPortal => linkedPortal != null;
+
     private Renderer rend;
 
     private void Awake()
@@ -53,7 +61,11 @@ public class TeleportPortal : MonoBehaviour
         float restOffset = p.y - transform.position.y;
         Vector3 dest = linkedPortal.transform.position;
         Vector3 target = new Vector3(dest.x, dest.y + restOffset, dest.z);
-        StartCoroutine(MoveAtEndOfFrame(() => cube.transform.position = target));
+        StartCoroutine(MoveAtEndOfFrame(() =>
+        {
+            cube.transform.position = target;
+            Teleported?.Invoke(this);
+        }));
         // Rotation is deliberately untouched, same as ResetToStart().
     }
 
