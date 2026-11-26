@@ -16,6 +16,21 @@ public enum TaskTrigger
     CookieDroppedOnOven,
     // The cube was teleported to a linked portal's tile.
     Teleported,
+
+    // Level 2 (pasta): water went into the pot.
+    WaterAdded,
+    // Level 2 (pasta): pasta went into the pot.
+    PastaAdded,
+    // Level 2 (pasta): pesto went into the pot.
+    PestoAdded,
+    // Level 2 (pasta): ANY pot step was completed (used for non-default ingredients).
+    PotStepCompleted,
+    // Level 2 (pasta): the button tile was pressed.
+    ButtonPressed,
+    // Level 2 (pasta): the cube was carried across a slide.
+    SlideUsed,
+    // Level 2 (pasta): the plate was reached with a complete pot.
+    PlateReached,
 }
 
 [Serializable]
@@ -105,6 +120,21 @@ public class TaskListUI : MonoBehaviour
             break; // one portal task is enough
         }
 
+        // Level 2 (pasta): one task per pot step, plus button and plate tasks,
+        // but only if the matching objects exist in the scene.
+        CookingPot pot = FindAnyObjectByType<CookingPot>();
+        if (pot != null)
+        {
+            foreach (PotIngredient ingredient in pot.Steps)
+                defaultTasks.Add(new Task { label = IngredientLabel(ingredient), trigger = IngredientTrigger(ingredient) });
+        }
+
+        if (FindAnyObjectByType<ButtonTile>() != null)
+            defaultTasks.Add(new Task { label = "Knopf drücken", trigger = TaskTrigger.ButtonPressed });
+
+        if (FindAnyObjectByType<GoalTile>() != null)
+            defaultTasks.Add(new Task { label = "Gericht servieren", trigger = TaskTrigger.PlateReached });
+
         if (defaultTasks.Count == 0) return null; // nothing to show for this level
 
         // The object starts out inactive so Awake (which builds the UI) runs only
@@ -147,6 +177,10 @@ public class TaskListUI : MonoBehaviour
         CubeController.CookieTaken += OnCookieTaken;
         CubeController.CookieDroppedOnOven += OnCookieDroppedOnOven;
         TeleportPortal.Teleported += OnTeleported;
+        CookingPot.PotStepCompleted += OnPotStepCompleted;
+        ButtonTile.ButtonPressed += OnButtonPressed;
+        SlideTile.SlideUsed += OnSlideUsed;
+        GoalTile.PlateReached += OnPlateReached;
     }
 
     private void OnDisable()
@@ -156,6 +190,10 @@ public class TaskListUI : MonoBehaviour
         CubeController.CookieTaken -= OnCookieTaken;
         CubeController.CookieDroppedOnOven -= OnCookieDroppedOnOven;
         TeleportPortal.Teleported -= OnTeleported;
+        CookingPot.PotStepCompleted -= OnPotStepCompleted;
+        ButtonTile.ButtonPressed -= OnButtonPressed;
+        SlideTile.SlideUsed -= OnSlideUsed;
+        GoalTile.PlateReached -= OnPlateReached;
     }
 
     private void OnDoughFlattened(CubeController cube) => Bump(TaskTrigger.DoughFlattened);
@@ -163,6 +201,34 @@ public class TaskListUI : MonoBehaviour
     private void OnCookieTaken(CubeController cube) => Bump(TaskTrigger.CookieTaken);
     private void OnCookieDroppedOnOven(CubeController cube) => Bump(TaskTrigger.CookieDroppedOnOven);
     private void OnTeleported(TeleportPortal portal) => Bump(TaskTrigger.Teleported);
+    private void OnPotStepCompleted(CookingPot pot, int index, PotIngredient ingredient) => Bump(IngredientTrigger(ingredient));
+    private void OnButtonPressed(ButtonTile button) => Bump(TaskTrigger.ButtonPressed);
+    private void OnSlideUsed(SlideTile slide) => Bump(TaskTrigger.SlideUsed);
+    private void OnPlateReached(GoalTile plate) => Bump(TaskTrigger.PlateReached);
+
+    // The default German label for a pot step.
+    private static string IngredientLabel(PotIngredient ingredient)
+    {
+        switch (ingredient)
+        {
+            case PotIngredient.Wasser: return "Wasser in den Topf";
+            case PotIngredient.Pasta: return "Nudeln in den Topf";
+            case PotIngredient.Pesto: return "Pesto dazugeben";
+            default: return "Zutat in den Topf";
+        }
+    }
+
+    // The task trigger a pot step with this ingredient bumps.
+    private static TaskTrigger IngredientTrigger(PotIngredient ingredient)
+    {
+        switch (ingredient)
+        {
+            case PotIngredient.Wasser: return TaskTrigger.WaterAdded;
+            case PotIngredient.Pasta: return TaskTrigger.PastaAdded;
+            case PotIngredient.Pesto: return TaskTrigger.PestoAdded;
+            default: return TaskTrigger.PotStepCompleted;
+        }
+    }
 
     // Increases the progress of every open task that reacts to this trigger.
     private void Bump(TaskTrigger trigger)

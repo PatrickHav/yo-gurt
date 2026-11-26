@@ -32,6 +32,18 @@ public class CubeFaceTextures : MonoBehaviour
 
         [Tooltip("Mark this if the face contains the baking sheet.")]
         public bool isBakingSheet;
+
+        [Tooltip("Mark this if the face contains water.")]
+        public bool isWater;
+
+        [Tooltip("Mark this if the face contains pasta.")]
+        public bool isPasta;
+
+        [Tooltip("Mark this if the face contains pesto.")]
+        public bool isPesto;
+
+        [Tooltip("Mark this if the face contains the hob / stovetop.")]
+        public bool isHob;
     }
 
     [Header("Faces (local to the cube)")]
@@ -94,6 +106,26 @@ public class CubeFaceTextures : MonoBehaviour
     public bool IsBakingSheetFacingDown(Quaternion cubeRotation)
     {
         return IsFaceDown(cubeRotation, f => f.isBakingSheet);
+    }
+
+    public bool IsWaterFacingDown(Quaternion cubeRotation)
+    {
+        return IsFaceDown(cubeRotation, f => f.isWater);
+    }
+
+    public bool IsPastaFacingDown(Quaternion cubeRotation)
+    {
+        return IsFaceDown(cubeRotation, f => f.isPasta);
+    }
+
+    public bool IsPestoFacingDown(Quaternion cubeRotation)
+    {
+        return IsFaceDown(cubeRotation, f => f.isPesto);
+    }
+
+    public bool IsHobFacingDown(Quaternion cubeRotation)
+    {
+        return IsFaceDown(cubeRotation, f => f.isHob);
     }
 
     private bool IsFaceDown(Quaternion cubeRotation, System.Func<Face, bool> isMarked)

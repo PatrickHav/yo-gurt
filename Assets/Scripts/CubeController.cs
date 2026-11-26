@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
 #if ENABLE_INPUT_SYSTEM
@@ -85,6 +86,12 @@ public class CubeController : MonoBehaviour
     // Whether an oven tile is present in this scene (resolved in Awake).
     public bool HasOvenTile => ovenTile != null;
 
+    // Direction (world axes) of the last finished roll. Vector3.zero before the first roll.
+    public Vector3 LastMoveDirection { get; private set; }
+
+    // True while a roll is in progress (including the chained second leg of a slide move).
+    public bool IsRolling => isRolling;
+
     private enum DoughState { Round, Flat, Cut, CookieTaken }
 
     private bool isRolling;
@@ -114,12 +121,20 @@ public class CubeController : MonoBehaviour
             if (oven != null) ovenTile = oven.transform;
         }
 
-        if (roundDough == null) Debug.LogWarning("CubeController: could not find 'dough'.", this);
-        if (flatDough == null) Debug.LogWarning("CubeController: could not find 'dough_flat'.", this);
-        if (cutDough == null) Debug.LogWarning("CubeController: could not find 'dough_cut'.", this);
-        if (doughWithHole == null) Debug.LogWarning("CubeController: could not find 'dough_cutout'.", this);
-        if (cookie == null) Debug.LogWarning("CubeController: could not find 'cookie'.", this);
-        if (ovenTile == null) Debug.LogWarning("CubeController: no oven tile assigned (or object named 'oven' found).", this);
+        // Levels without ANY dough objects (e.g. the pasta level) don't get
+        // warnings; a dough level with a missing object still does.
+        bool anyDoughFound = roundDough != null || flatDough != null
+            || cutDough != null || doughWithHole != null;
+
+        if (anyDoughFound)
+        {
+            if (roundDough == null) Debug.LogWarning("CubeController: could not find 'dough'.", this);
+            if (flatDough == null) Debug.LogWarning("CubeController: could not find 'dough_flat'.", this);
+            if (cutDough == null) Debug.LogWarning("CubeController: could not find 'dough_cut'.", this);
+            if (doughWithHole == null) Debug.LogWarning("CubeController: could not find 'dough_cutout'.", this);
+            if (cookie == null) Debug.LogWarning("CubeController: could not find 'cookie'.", this);
+            if (ovenTile == null) Debug.LogWarning("CubeController: no oven tile assigned (or object named 'oven' found).", this);
+        }
 
         // If a model/prefab from the Project window was assigned (not a scene object),
         // create a copy in the scene to use.
@@ -155,7 +170,20 @@ public class CubeController : MonoBehaviour
         Vector3 dir = ReadDirection();
         if (dir == Vector3.zero) return;
 
-        if (!HasGroundAt(transform.position + dir * stepSize)) return; // blocked
+        Vector3 targetCenter = transform.position + dir * stepSize;
+        if (!HasGroundAt(targetCenter)) return; // blocked
+
+        // The target tile is a slide: the cube can only roll onto it ALONG its
+        // direction and will be carried one tile further without extra input.
+        SlideTile slide = SlideTile.At(targetCenter);
+        if (slide != null)
+        {
+            if (slide.Direction != dir) return; // entering from the side or against the direction: blocked
+            if (!HasGroundAt(targetCenter + dir * stepSize)) return; // no ground after the slide: blocked
+
+            StartCoroutine(RollThroughSlide(dir, slide));
+            return;
+        }
 
         StartCoroutine(Roll(dir));
     }
@@ -198,13 +226,57 @@ public class CubeController : MonoBehaviour
 
     private IEnumerator Roll(Vector3 dir)
     {
+        yield return RollLeg(dir, intermediate: false);
+    }
+
+    // Rolls the cube onto the slide (leg 1, no effects, no Landed) and then one
+    // more tile in the same direction (leg 2, a normal roll), so the cube moves
+    // two tiles and rotates twice. It can never stop on the slide: if leg 2 lands
+    // on another slide going the same way, the chain continues.
+    private IEnumerator RollThroughSlide(Vector3 dir, SlideTile slide)
+    {
+        List<SlideTile> usedSlides = new List<SlideTile> { slide };
+
+        yield return RollLeg(dir, intermediate: true);
+
+        while (true)
+        {
+            Vector3 nextCenter = transform.position + dir * stepSize;
+
+            // Should have been blocked in Update; fail safe (no roll into the void).
+            if (!HasGroundAt(nextCenter)) break;
+
+            SlideTile nextSlide = SlideTile.At(nextCenter);
+            if (nextSlide == null || nextSlide.Direction != dir)
+            {
+                // The final landing: a normal roll, all tile effects and Landed apply.
+                yield return RollLeg(dir, intermediate: false);
+                break;
+            }
+
+            // The next tile is another slide: keep sliding (still an intermediate landing).
+            yield return RollLeg(dir, intermediate: true);
+            usedSlides.Add(nextSlide);
+        }
+
+        foreach (SlideTile s in usedSlides)
+            s.NotifySlideUsed();
+    }
+
+    // One roll (one tile). `intermediate` marks a leg of a chained slide move:
+    // the intermediate landing (ON the slide) has no dough/baking sheet logic and
+    // does not fire Landed; only the final landing counts for tile effects.
+    private IEnumerator RollLeg(Vector3 dir, bool intermediate)
+    {
         isRolling = true;
+        LastMoveDirection = dir;
 
         Vector3 startPos = transform.position;
         Quaternion startRot = transform.rotation;
 
         // Checked BEFORE the move: the dough changes as we leave the tile.
-        bool onDough = faceTextures != null && IsOnDoughTile(startPos);
+        // (Suppressed for the intermediate slide leg: the slide has no tool effects.)
+        bool onDough = !intermediate && faceTextures != null && IsOnDoughTile(startPos);
 
         // Round dough + rolling pin face down  ->  flat dough.
         bool flattenWhenMoveEnds = onDough
@@ -242,6 +314,13 @@ public class CubeController : MonoBehaviour
         Vector3 endPos = startPos + dir * stepSize;
         Quaternion finalRot = Quaternion.Euler(e);
         transform.SetPositionAndRotation(endPos, finalRot);
+
+        if (intermediate)
+        {
+            // The intermediate landing (on the slide tile): no tile effects, no Landed.
+            isRolling = false;
+            yield break;
+        }
 
         // Landed with the baking sheet side down?
         if (faceTextures != null && faceTextures.IsBakingSheetFacingDown(finalRot))
